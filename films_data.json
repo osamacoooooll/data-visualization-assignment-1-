@@ -20,7 +20,7 @@
         "title": "Titanic",
         "release_year": 1997,
         "director": "James Cameron",
-        "box_office": "T$2,257,844,554",
+        "box_office": "$2,257,844,554",
         "country": "United States"
     },
     {
@@ -148,7 +148,7 @@
         "title": "Frozen",
         "release_year": 2013,
         "director": "Chris Buck, Jennifer Lee",
-        "box_office": "F$1,290,000,000",
+        "box_office": "$1,290,000,000",
         "country": "United States"
     },
     {
