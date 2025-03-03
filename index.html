@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Movie Data Visualization</title>
+  <title>Movie Data Visualization Dashboard</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,500,700" />
+  <!-- Chart.js Library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     /* Global Styles */
     body {
@@ -66,7 +68,7 @@
     tr:hover {
       background-color: #f1f1f1;
     }
-    /* Responsive styles for mobile */
+    /* Responsive Table Styles */
     @media (max-width: 768px) {
       table, thead, tbody, th, td, tr {
         display: block;
@@ -102,13 +104,29 @@
       td:nth-of-type(4):before { content: "Box Office"; }
       td:nth-of-type(5):before { content: "Country"; }
     }
+    /* Charts container styling */
+    .charts {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      margin-top: 2rem;
+    }
+    .charts canvas {
+      max-width: 500px;
+      margin: 1rem;
+      background-color: #fff;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>Movie Data Visualization</h1>
+    <h1>Movie Data Visualization Dashboard</h1>
   </header>
   <div class="container">
+    <!-- Controls: Search and Sort -->
     <div class="controls">
       <div>
         <input type="text" id="searchInput" placeholder="Search by title..." />
@@ -125,6 +143,7 @@
         </select>
       </div>
     </div>
+    <!-- Data Table -->
     <table id="movieTable">
       <thead>
         <tr>
@@ -136,10 +155,18 @@
         </tr>
       </thead>
       <tbody>
-        <!-- Movie rows will be populated here -->
+        <!-- Table rows populated by JavaScript -->
       </tbody>
     </table>
+    
+    <!-- Charts Section -->
+    <div class="charts">
+      <canvas id="barChart"></canvas>
+      <canvas id="pieChart"></canvas>
+      <canvas id="scatterChart"></canvas>
+    </div>
   </div>
+  
   <script>
     // Movie data array
     const movies = [
@@ -202,7 +229,13 @@
     const searchInput = document.getElementById('searchInput');
     const sortSelect = document.getElementById('sortSelect');
     
-    // Renders the movie table rows
+    // Helper function: extract numeric value from the box office string.
+    function parseBoxOffice(boxOffice) {
+      const numericValue = boxOffice.replace(/[^0-9]/g, '');
+      return parseInt(numericValue);
+    }
+    
+    // Render the table rows.
     function renderTable(data) {
       movieTableBody.innerHTML = '';
       data.forEach(movie => {
@@ -216,16 +249,17 @@
         `;
         movieTableBody.appendChild(row);
       });
+      updateCharts();
     }
     
-    // Filter movies by title based on the search input
+    // Filter movies by title based on the search input.
     function filterMovies() {
       const query = searchInput.value.toLowerCase();
       filteredMovies = movies.filter(movie => movie.title.toLowerCase().includes(query));
       sortMovies();
     }
     
-    // Sort the filtered movies based on the selected option
+    // Sort the filtered movies based on the selected option.
     function sortMovies() {
       const sortValue = sortSelect.value;
       if (sortValue === 'title-asc') {
@@ -244,21 +278,14 @@
       renderTable(filteredMovies);
     }
     
-    // Helper function to extract a numeric value from the box office string
-    function parseBoxOffice(boxOffice) {
-      const numericValue = boxOffice.replace(/[^0-9]/g, '');
-      return parseInt(numericValue);
-    }
-    
-    // Add event listeners
+    // Event listeners for filtering and sorting.
     searchInput.addEventListener('input', filterMovies);
     sortSelect.addEventListener('change', sortMovies);
     
-    // Optional: Allow sorting by clicking on table headers
+    // Optional: Allow sorting by clicking on table headers.
     document.querySelectorAll('th').forEach(header => {
       header.addEventListener('click', () => {
         const sortKey = header.getAttribute('data-sort');
-        // Toggle sort order if same key is selected
         let newOrder = sortKey + '-asc';
         if (sortSelect.value === sortKey + '-asc') {
           newOrder = sortKey + '-desc';
@@ -268,7 +295,168 @@
       });
     });
     
-    // Initial render of table
+    // --------------------- Chart.js Visualizations ---------------------
+    function updateCharts() {
+      // Use filteredMovies so that the charts update along with the table.
+      const moviesForCharts = filteredMovies;
+      
+      // 1. Bar Chart: Top 10 movies by box office.
+      const moviesSortedByRevenue = [...moviesForCharts].sort((a, b) => parseBoxOffice(b.box_office) - parseBoxOffice(a.box_office));
+      const top10 = moviesSortedByRevenue.slice(0, 10);
+      const barLabels = top10.map(movie => movie.title);
+      const barData = top10.map(movie => parseBoxOffice(movie.box_office));
+      
+      if (window.barChart) {
+        window.barChart.data.labels = barLabels;
+        window.barChart.data.datasets[0].data = barData;
+        window.barChart.update();
+      } else {
+        const barCtx = document.getElementById('barChart').getContext('2d');
+        window.barChart = new Chart(barCtx, {
+          type: 'bar',
+          data: {
+            labels: barLabels,
+            datasets: [{
+              label: 'Box Office (USD)',
+              data: barData,
+              backgroundColor: 'rgba(76, 175, 80, 0.6)',
+              borderColor: 'rgba(76, 175, 80, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              title: {
+                display: true,
+                text: 'Top 10 Box Office Movies'
+              },
+              tooltip: {
+                callbacks: {
+                  label: context => '$' + context.parsed.y.toLocaleString()
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: value => '$' + value.toLocaleString()
+                }
+              }
+            }
+          }
+        });
+      }
+      
+      // 2. Pie Chart: Distribution of movies by country.
+      const countryCounts = {};
+      moviesForCharts.forEach(movie => {
+        const country = movie.country ? movie.country : "Unknown";
+        countryCounts[country] = (countryCounts[country] || 0) + 1;
+      });
+      const pieLabels = Object.keys(countryCounts);
+      const pieData = Object.values(countryCounts);
+      
+      if (window.pieChart) {
+        window.pieChart.data.labels = pieLabels;
+        window.pieChart.data.datasets[0].data = pieData;
+        window.pieChart.update();
+      } else {
+        const pieCtx = document.getElementById('pieChart').getContext('2d');
+        window.pieChart = new Chart(pieCtx, {
+          type: 'pie',
+          data: {
+            labels: pieLabels,
+            datasets: [{
+              label: 'Movies by Country',
+              data: pieData,
+              backgroundColor: [
+                'rgba(255, 99, 132, 0.6)',
+                'rgba(54, 162, 235, 0.6)',
+                'rgba(255, 206, 86, 0.6)',
+                'rgba(75, 192, 192, 0.6)',
+                'rgba(153, 102, 255, 0.6)',
+                'rgba(255, 159, 64, 0.6)'
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              title: {
+                display: true,
+                text: 'Movies by Country'
+              }
+            }
+          }
+        });
+      }
+      
+      // 3. Scatter Chart: Release Year vs Box Office.
+      const scatterData = moviesForCharts.map(movie => ({
+        x: movie.release_year,
+        y: parseBoxOffice(movie.box_office),
+        title: movie.title
+      }));
+      
+      if (window.scatterChart) {
+        window.scatterChart.data.datasets[0].data = scatterData;
+        window.scatterChart.update();
+      } else {
+        const scatterCtx = document.getElementById('scatterChart').getContext('2d');
+        window.scatterChart = new Chart(scatterCtx, {
+          type: 'scatter',
+          data: {
+            datasets: [{
+              label: 'Movies',
+              data: scatterData,
+              backgroundColor: 'rgba(255, 99, 132, 0.6)'
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              title: {
+                display: true,
+                text: 'Release Year vs Box Office'
+              },
+              tooltip: {
+                callbacks: {
+                  label: context => {
+                    const point = context.raw;
+                    return point.title + ': $' + point.y.toLocaleString();
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                title: {
+                  display: true,
+                  text: 'Release Year'
+                },
+                ticks: {
+                  precision: 0
+                }
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: 'Box Office (USD)'
+                },
+                ticks: {
+                  callback: value => '$' + value.toLocaleString()
+                }
+              }
+            }
+          }
+        });
+      }
+    }
+    
+    // Initial render
     renderTable(filteredMovies);
   </script>
 </body>
