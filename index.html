@@ -105,7 +105,7 @@
       const sortSelect = document.getElementById('sortSelect');
       let movies = [];
       let filteredMovies = [];
-      fetch('films.json')
+      fetch('films_data.json')
         .then(response => response.json())
         .then(data => {
           movies = data;
